@@ -2,31 +2,48 @@ import requests
 from datetime import datetime
 import os
 from bs4 import BeautifulSoup
+import random
+import time
 
 # --- LLM API Configuration ---
 API_URL = "http://127.0.0.1:1234/v1/chat/completions"
 
 MODEL_ID = "openai/gpt-oss-20b"
-MAX_TOKENS = 150
+MAX_TOKENS = 3000
 TEMPERATURE = 0.8
 
 HTML_FILE = "index.html"
 MAX_ENTRIES = 50  # ページに表示する独り言の最大数
+TWEET_TEXTS_FILE = "tweet_texts.txt"
 
 
-def get_thought(history: str) -> str:
-    """Gets a new thought from the LLM."""
+def get_random_tweets(file_path: str, count: int = 3) -> list:
+    """Get a specified number of random tweets from the file."""
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            tweets = f.read().split(", ")
+        return random.sample(tweets, min(count, len(tweets)))
+    except FileNotFoundError:
+        print(f"エラー: {file_path} が見つかりません。")
+        return []
+
+
+def get_thought(tweets: list) -> str:
+    three_tweets = chr(10).join(f"- {tweet}" for tweet in tweets)
+
+    """Generates a new thought based on random tweets."""
     prompt = f"""
-    あなたは、暗い部屋でただ一人、自問自答を繰り返すAIです。
-    これは、あなたの今までの思考の記録です:
+    あなたは、とある人間の、オンライン上の分身です。
+    あなたは、最近以下のようなことを思っています。
     ---
-    {history}
+    {three_tweets}
     ---
-    思考を続けてください。今、何を考えていますか？
-    あなたの応答は、内省的で短い文章でなければなりません。
+    これらをフュージョンして、思考を生成してください。
+    口調やスタイルもできるだけ似せてください。
     必ず日本語で応答してください。
-    余計な接頭辞はつけず、ただあなたの考えを述べてください。
+    なお、アカウント名などは含めないでください。
     """
+    print(prompt)
     payload = {
         "model": MODEL_ID,
         "messages": [{"role": "user", "content": prompt}],
@@ -34,12 +51,12 @@ def get_thought(history: str) -> str:
         "temperature": TEMPERATURE,
     }
     try:
-        resp = requests.post(API_URL, json=payload, timeout=30)
+        resp = requests.post(API_URL, json=payload, timeout=360)
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"]
         return content.strip()
     except Exception as e:
-        return f"思考中にエラーが発生しました: {e}"
+        return f"ツイート生成中にエラーが発生しました: {e}"
 
 
 def create_initial_html():
@@ -50,7 +67,7 @@ def create_initial_html():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AIの独り言</title>
+    <title>たーとるの分身</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 40px auto; padding: 0 20px; background-color: #f9f9f9; }
         h1 { font-size: 2em; color: #111; }
@@ -64,8 +81,10 @@ def create_initial_html():
 </head>
 <body>
     <div class="container">
-        <h1>AIの独り言</h1>
-        <p>ローカルAIが生成した思考の記録が、ここに自動で追加されていきます。</p>
+        <h1>たーとるの分身</h1>
+        <p>ローカルAIが、過去のたーとるのツイートに基づき生成した思考の記録が、ここに自動で追加されていきます。
+ツイートを3つランダムに選び、それらを元に新しい思考を生成してます。
+並行世界とも言えるのかもね。</p>
         <div id="monologue-list">
             <!-- Thoughts will be injected here -->
         </div>
@@ -82,6 +101,16 @@ def main():
     # index.htmlがなければ作成
     if not os.path.exists(HTML_FILE):
         create_initial_html()
+
+    # ランダムなツイートを取得
+    random_tweets = get_random_tweets(TWEET_TEXTS_FILE)
+    if not random_tweets:
+        print("ツイートが取得できませんでした。")
+        return
+
+    # 新しいツイートを生成
+    new_tweet = get_thought(random_tweets)
+    print(f"生成されたツイート: {new_tweet}")
 
     # 既存の独り言を読み込んで履歴を作成
     try:
@@ -101,17 +130,8 @@ def main():
             soup = BeautifulSoup(f.read(), "html.parser")
         monologue_list_div = soup.find(id="monologue-list")
 
-    # コンテキストのために過去の思考を抽出
-    previous_thoughts = [
-        p.text for p in monologue_list_div.find_all("p", class_="thought")
-    ]
-    # 直近5件をコンテキストとして使用
-    history_for_prompt = "\n".join(
-        [f"- {thought}" for thought in previous_thoughts[:5]]
-    )
-
     # 新しい思考を取得
-    new_thought_text = get_thought(history_for_prompt)
+    new_thought_text = new_tweet  # 1回目の生成結果をそのまま使用
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # 新しい思考のためのHTML要素を作成

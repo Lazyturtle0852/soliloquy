@@ -13,6 +13,7 @@ REMOTE_NAME = "origin"
 # ご自身のデフォルトブランチ名に合わせて変更してください (例: "master")
 BRANCH_NAME = "main"
 
+
 def run_generator():
     """コンテンツ生成スクリプトを実行します。"""
     generator_path = os.path.join(REPO_PATH, GENERATOR_SCRIPT)
@@ -25,7 +26,7 @@ def run_generator():
             text=True,
             check=True,
             cwd=REPO_PATH,
-            encoding='utf-8'
+            encoding="utf-8",
         )
         print(process.stdout)
         if process.stderr:
@@ -40,6 +41,7 @@ def run_generator():
         print(e.stderr, file=sys.stderr)
         sys.exit(1)
 
+
 def main():
     """コンテンツを更新し、コミット、プッシュを実行します。"""
     # 1. コンテンツ生成スクリプトを実行
@@ -51,17 +53,20 @@ def main():
 
         # デフォルトブランチにいるか確認
         if repo.active_branch.name != BRANCH_NAME:
-            print(f"警告: 現在のブランチは '{repo.active_branch.name}' です。'{BRANCH_NAME}' ブランチに切り替えてください。", file=sys.stderr)
+            print(
+                f"警告: 現在のブランチは '{repo.active_branch.name}' です。'{BRANCH_NAME}' ブランチに切り替えてください。",
+                file=sys.stderr,
+            )
             # ここで処理を中断したい場合は sys.exit(1) をコール
-    
+
         # 3. 対象ファイルをステージング
         print(f"ステージング中: {TARGET_FILE}")
         repo.index.add([TARGET_FILE])
 
         # 4. コミットすべき変更があるか確認
         if not repo.index.diff("HEAD"):
-             print("コミットする変更がありません。")
-             return
+            print("コミットする変更がありません。")
+            return
 
         # 5. 変更をコミット
         commit_message = f"📝 AI Log: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
@@ -77,7 +82,10 @@ def main():
 
     except GitCommandError as e:
         print(f"\n❌ Git操作中にエラーが発生しました: {e}", file=sys.stderr)
-        print("リポジトリの設定、ネットワーク接続、認証情報が正しいか確認してください。", file=sys.stderr)
+        print(
+            "リポジトリの設定、ネットワーク接続、認証情報が正しいか確認してください。",
+            file=sys.stderr,
+        )
         sys.exit(1)
     except Exception as e:
         print(f"\n❌ 予期せぬエラーが発生しました: {e}", file=sys.stderr)
